@@ -99,12 +99,12 @@ void* DasneyContenido(void* arg) {
         int seriesActuales = cantidadSeriesDasney;
         cantidadSeriesDasney = distrib2(gen); // Actualizar la cantidad de series
         
-
         // Espera hasta que todos los hilos hayan terminado su acceso en la semana
         pthread_mutex_lock(&mutexCount);
         while (count != 6) {
             pthread_cond_wait(&cond_actualizarDasney, &mutexCount);
         }
+        cout<<"YA PASARON LOS 6 PROCESOS, ACTUALIZARE"<<endl;
         pthread_mutex_unlock(&mutexCount);
 
         // Verifica que todos los hilos tengan vectores de mismo tamaño
@@ -122,6 +122,9 @@ void* DasneyContenido(void* arg) {
             listo = true;
 
             pthread_cond_broadcast(&cond_DasneyActualizado);  // Libera a todos los threads
+            sleep(4);
+            cout<<"--------------NUEVA SEMANA--------------------"<<endl;
+            listo = false;
 
         }
         }
@@ -131,6 +134,7 @@ void* DasneyContenido(void* arg) {
 }
 
 void* Dasney(void* arg) {
+
     pthread_mutex_lock(&mapa);
     pthread_t thread_id = pthread_self();
     profesores[thread_id] = {};  // Inicializa el vector de series del thread
@@ -139,8 +143,8 @@ void* Dasney(void* arg) {
     while (semanas>0)
     {
         sem_wait(&semaforoDasney);
-        pthread_mutex_lock(&mutexDasney);
 
+        pthread_mutex_lock(&mutexDasney);
         // Espera hasta que las series estén actualizadas para la semana actual
         while (estadoSeriesDasney.size() == 0) {
             pthread_cond_wait(&cond_DasneyCreado, &mutexDasney);
@@ -168,13 +172,16 @@ void* Dasney(void* arg) {
 
         // Espera hasta que todos los hilos completen la semana y se actualicen las series
         pthread_mutex_lock(&mutexDasney2);
+        cout<<"esperando actualizacion"<<endl;
         while (!listo) {
             pthread_cond_wait(&cond_DasneyActualizado, &mutexDasney2);
         }
+        cout<<"se actualizó"<<endl;
         pthread_mutex_unlock(&mutexDasney2);
 
+
         cout << "termino la semana" << endl;
-        sleep(2);
+        sleep(5);
     }
     
     
