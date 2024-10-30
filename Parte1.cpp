@@ -9,6 +9,7 @@
 #include <iostream>
 #include <semaphore.h>
 #include <random>
+#include <unistd.h>
 using namespace std;
 
 // Elementos para la generación de números random
@@ -18,7 +19,6 @@ mt19937 gen(rd());
 uniform_int_distribution<> distrib(0, valores.size() - 1);
 uniform_int_distribution<> distrib2(10, 15);
 
-int cont = 0;
 int count = 0;
 int semanas = 2; // Declaración número de semanas
 bool listo = false;
@@ -29,13 +29,16 @@ map<string, int> estadoSeriesDasney; // Mapa para el estado de las series en Das
 map<string, int> estadoSeriesBetflix; // Mapa para el estado de las series en Betflix
 map<pthread_t, vector<double>> profesores;
 
-pthread_cond_t cond_actualizadoDasney = PTHREAD_COND_INITIALIZER;
-pthread_cond_t cond_actualizadoDasney2 = PTHREAD_COND_INITIALIZER;
+pthread_cond_t cond_DasneyCreado = PTHREAD_COND_INITIALIZER;
+pthread_cond_t cond_DasneyActualizado = PTHREAD_COND_INITIALIZER;
 pthread_cond_t cond_actualizadoBetflix = PTHREAD_COND_INITIALIZER;
+pthread_cond_t cond_actualizarDasney = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t mapa = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexDasney = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexDasney2 = PTHREAD_MUTEX_INITIALIZER; // Mutex para Dasney
+pthread_mutex_t mutexDasney3 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexBetflix = PTHREAD_MUTEX_INITIALIZER; // Mutex para Betflix
+pthread_mutex_t mutexCount = PTHREAD_MUTEX_INITIALIZER;
 sem_t semaforoDasney; // semáforo para controlar el acceso a Dasney
 sem_t semaforoBetflix; // semáforo para controlar el acceso a Betflix
 
@@ -63,26 +66,9 @@ bool verificarCantidadElementos() {
     }
 }
 
-void DasneyContenido() {
-    // Generación de una cantidad random entre 10 y 15 de series en la plataforma Dasney
-    cantidadSeriesDasney = distrib2(gen); // Establecer la cantidad de series
-    cout << "Cantidad de series para Dasney: " << cantidadSeriesDasney << endl;
-    for (int i = 0; i < cantidadSeriesDasney; i++) {
-        estadoSeriesDasney["Serie " + to_string(i)] = 0; // 0 significa que la serie no ha sido vista
-    }
-    if (cont == 0) {
-        // Señal para indicar que las series han sido creadas
-        cont = 1;
-        pthread_cond_broadcast(&cond_actualizadoDasney);
-    } else if (verificarCantidadElementos()) {  //aqui verifica que la plataforma se actualizó correctamente despues de que los threads hayan 
-        cout << "Todos pasaron" << endl;        //pasado la semana
-        listo = true;
-        pthread_cond_broadcast(&cond_actualizadoDasney2);
-        pthread_mutex_unlock(&mutexDasney2);
-    }
-}
 
-void BetflixContenido() {
+
+void* BetflixContenido(void* arg) {
     // Generación de una cantidad random entre 10 y 15 de series en la plataforma Betflix
     cantidadSeriesBetflix = distrib2(gen); // Establecer la cantidad de series
     cout << "Cantidad de series para Betflix: " << cantidadSeriesBetflix << endl;
@@ -91,45 +77,110 @@ void BetflixContenido() {
     }
     // Señal para indicar que las series han sido creadas
     pthread_cond_broadcast(&cond_actualizadoBetflix);
+
+    return nullptr;
 }
 
-void* Dasney(void* arg) {
+//Función para inicializar Dasney
+void CrearDasney(){
+     cantidadSeriesDasney = distrib2(gen); // Establecer la cantidad de series
+    cout << "Cantidad de series para Dasney: " << cantidadSeriesDasney << endl;
+        // Señal para indicar que las series han sido creadas
+         for (int i = 0; i < cantidadSeriesDasney; i++) {
+        estadoSeriesDasney["Serie " + to_string(i)] = 0; // 0 significa que la serie no ha sido vista
+        pthread_cond_broadcast(&cond_DasneyCreado);
+    } 
+}
 
-    //ponemos a los threads en el mapa
-    pthread_mutex_lock(&mapa);
-    pthread_t thread_id = pthread_self();
-    pthread_mutex_unlock(&mapa);
-    
-    //inicia la semana, se controla el acceso con los semaforos
-    sem_wait(&semaforoDasney); // decrementar en 1 el contador
-    pthread_mutex_lock(&mutexDasney); // Bloquear mutex para evitar condiciones de carrera
-    while (estadoSeriesDasney.size() == 0) { // Espera hasta que todas las series hayan sido creadas
-        pthread_cond_wait(&cond_actualizadoDasney, &mutexDasney);
-    }
-    cout << "Accedió a la plataforma Dasney el thread " << arg << endl;
-    
-    double seriesPorVer = valores[distrib(gen)]; // determina de forma random la cantidad de series para ver
-    profesores[thread_id].push_back(seriesPorVer); // Añadir seriesPorVer al vector del hilo actual
-    cout << "EL thread " << arg << " vio " << seriesPorVer << " series en la semana" << endl;
+void* DasneyContenido(void* arg) {
 
-    pthread_mutex_unlock(&mutexDasney); // Desbloquear el mutex
-    sem_post(&semaforoDasney); // Liberar el semáforo
-    cout << "salió del thread " << arg << endl;
+        while (semanas>0)
+        {
+        int seriesActuales = cantidadSeriesDasney;
+        cantidadSeriesDasney = distrib2(gen); // Actualizar la cantidad de series
+        
 
-    pthread_mutex_lock(&mutexDasney2);
-    cout << "entró al mutex un registro" << endl;
-    count++;
-    if (count == 6) {
-        cout << "se ejecutará la función de contenido de Dasney..." << endl;
-        DasneyContenido();
-    }
-    while (!listo) {
-        pthread_cond_wait(&cond_actualizadoDasney2, &mutexDasney2);
-    }
-    pthread_mutex_unlock(&mutexDasney2);
+        // Espera hasta que todos los hilos hayan terminado su acceso en la semana
+        pthread_mutex_lock(&mutexCount);
+        while (count != 6) {
+            pthread_cond_wait(&cond_actualizarDasney, &mutexCount);
+        }
+        pthread_mutex_unlock(&mutexCount);
+
+        // Verifica que todos los hilos tengan vectores de mismo tamaño
+        if (verificarCantidadElementos()) {
+            cout << "Todos los hilos completaron correctamente la semana" << endl;
+            cout << "Cantidad de series para Dasney: " << cantidadSeriesDasney << endl;
+
+            // Actualiza las series para la próxima semana
+            for (int i = 0; i < cantidadSeriesDasney; i++) {
+                estadoSeriesDasney["Serie " + to_string(i + seriesActuales + 1)] = 0;
+            }
+            // Reinicia el contador y habilita la siguiente semana
+            count = 0;
+            semanas--;
+            listo = true;
+
+            pthread_cond_broadcast(&cond_DasneyActualizado);  // Libera a todos los threads
+
+        }
+        }
+        
     
     return nullptr;
 }
+
+void* Dasney(void* arg) {
+    pthread_mutex_lock(&mapa);
+    pthread_t thread_id = pthread_self();
+    profesores[thread_id] = {};  // Inicializa el vector de series del thread
+    pthread_mutex_unlock(&mapa);
+
+    while (semanas>0)
+    {
+        sem_wait(&semaforoDasney);
+        pthread_mutex_lock(&mutexDasney);
+
+        // Espera hasta que las series estén actualizadas para la semana actual
+        while (estadoSeriesDasney.size() == 0) {
+            pthread_cond_wait(&cond_DasneyCreado, &mutexDasney);
+        }
+         pthread_mutex_unlock(&mutexDasney);
+
+         pthread_mutex_lock(&mutexDasney3);
+
+        // Ver cuántas series puede ver el hilo
+        double seriesPorVer = valores[distrib(gen)];
+        profesores[thread_id].push_back(seriesPorVer);
+        cout << "EL thread " << arg << " vio " << seriesPorVer << " series en la semana" << endl;
+
+        pthread_mutex_unlock(&mutexDasney3);
+
+        sem_post(&semaforoDasney);
+
+        // Contabiliza el acceso de cada hilo
+        pthread_mutex_lock(&mutexCount);
+        count++;
+        if(count == 6) {
+            pthread_cond_signal(&cond_actualizarDasney);  // Señaliza que todos terminaron
+        }
+        pthread_mutex_unlock(&mutexCount);
+
+        // Espera hasta que todos los hilos completen la semana y se actualicen las series
+        pthread_mutex_lock(&mutexDasney2);
+        while (!listo) {
+            pthread_cond_wait(&cond_DasneyActualizado, &mutexDasney2);
+        }
+        pthread_mutex_unlock(&mutexDasney2);
+
+        cout << "termino la semana" << endl;
+        sleep(2);
+    }
+    
+    
+    return nullptr;
+}
+
 
 void* Betflix(void* arg) {
     sem_wait(&semaforoBetflix);
@@ -155,26 +206,28 @@ void imprimirContenidos() {
 }
 
 int main(int argc, char* argv[]) {
-    // Crear las series en Dasney y Betflix
-    DasneyContenido();
-    BetflixContenido();
-
     // Declaración de los threads                 
-    pthread_t threads[12];
+    pthread_t threads[14];
     int status;
+
+    CrearDasney();
 
     // Inicialización de los semáforos
     sem_init(&semaforoDasney, 0, 2);
     sem_init(&semaforoBetflix, 0, 1);
 
     // Crear hilos para Dasney y Betflix
-    for (long i = 0; i < 12; i++) {
+    for (long i = 0; i < 14; i++) {
         if (i <= 5) {
             printf("[main] Creando thread %ld para Dasney\n", i);
             status = pthread_create(&threads[i], NULL, Dasney, (void*)i);
-        } else {
+        } else if(i>5 && i<=11){
             printf("[main] Creando thread %ld para Betflix\n", i);
             status = pthread_create(&threads[i], NULL, Betflix, (void*)i);
+        }else if(i==12){
+            status = pthread_create(&threads[i], NULL, BetflixContenido, (void*)i);
+        } else if(i==13){
+            status = pthread_create(&threads[i], NULL, DasneyContenido, (void*)i);
         }
         
         if (status != 0) {
@@ -190,8 +243,6 @@ int main(int argc, char* argv[]) {
 
     // Imprimir los contenidos de los vectores
     imprimirContenidos();
-    cout<<estadoSeriesBetflix.size();
-
     // Limpiar los semáforos
     sem_destroy(&semaforoDasney);
     sem_destroy(&semaforoBetflix);
