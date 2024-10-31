@@ -23,9 +23,11 @@ bool signal1=0;
 bool signal2=0;
 int count = 0;
 int count1 = 0;
-int semanas = 2; // Declaración número de semanas
+int semanas = 48; // Declaración número de semanas
 bool listo = false;
 
+int seriesActualesDasney;
+int seriesActualesBetflix;
 int cantidadSeriesBetflix = 0; // contador de series para Betflix
 int cantidadSeriesDasney = 0; // contador de series para Dasney
 map<string, int> estadoSeriesDasney; // Mapa para el estado de las series en Dasney
@@ -55,85 +57,6 @@ pthread_mutex_t mutexBetflix3 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexActualizarSemana= PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond_PlataformasActualizadas = PTHREAD_COND_INITIALIZER;
 
-void* NuevaSemana(void* arg){
-    int i=0;
-      while (semanas > 0) {
-        i++;
-        pthread_mutex_lock(&mutexActualizarSemana);
-        
-        // Espera hasta que las señales estén listas
-        while (signal1 != 1 || signal2 != 1) {
-            pthread_mutex_unlock(&mutexActualizarSemana);
-            sleep(1); // Ajustar el tiempo de espera para evitar busy waiting
-            pthread_mutex_lock(&mutexActualizarSemana);
-        }
-
-        cout<<"TODOS LOS PROFESORES TERMINARON LA SEMANA"<<endl;
-        
-        // Reduce el número de semanas solo cuando las señales están listas
-        signal1 = 0;
-        signal2 = 0;
-        semanas--;
-        listo = true; // Indica que la semana ha terminado
-      
-
-        cout<<"CAMBIO DE VALORES"<<endl;
-
-        pthread_cond_broadcast(&cond_PlataformasActualizadas); 
-
-        cout<<"ESPERARE POR UNOS SEGUNDOS"<<endl;
-        sleep(10);
-        
-        cout << "-----SE ACABO LA SEMANA "<<i<<" --------------"<< endl;
-        cout<<"CAMBIE A !LISTO NINGUN THREAD SE VA A LA SIGUIENTE SEMANA DE AQUI EN ADELANTE"<<endl;
-        listo = false; // Resetea la bandera
-        
-        pthread_mutex_unlock(&mutexActualizarSemana);
-
-        
-
-}
-return nullptr;
-}
-
-void* BetflixContenido(void* arg) {
-     while (semanas>0)
-        {
-        int seriesActuales = cantidadSeriesBetflix;
-        cantidadSeriesBetflix = distrib2(gen); // Actualizar la cantidad de series
-        
-        // Espera hasta que todos los hilos hayan terminado su acceso en la semana
-        pthread_mutex_lock(&mutexCount1);
-        while (count1 != 6) {
-            pthread_cond_wait(&cond_actualizarBetflix, &mutexCount1);
-        }
-       
-        pthread_mutex_unlock(&mutexCount1);
-
-        // Verifica que todos los hilos tengan vectores de mismo tamaño
-            
-            cout << "Cantidad de series para Betflix: " << cantidadSeriesBetflix << endl;
-
-            // Actualiza las series para la próxima semana
-            for (int i = 0; i < cantidadSeriesBetflix; i++) {
-                estadoSeriesBetflix["Serie " + to_string(i + seriesActuales + 1)] = 0;
-            }
-            // Reinicia el contador y habilita la siguiente semana
-            count1 = 0;
-            signal2=1;
-            
-             pthread_mutex_lock(&mutexDasney2);
-        
-        while (!listo) {
-            pthread_cond_wait(&cond_PlataformasActualizadas, &mutexDasney2);
-        }
-        pthread_mutex_unlock(&mutexDasney2);
-           
-
-        }
-
-    return nullptr;
-}
 
 //Función para inicializar Dasney
 void CrearDasney(){
@@ -156,52 +79,120 @@ void CrearBetflix(){
     } 
 }
 
-void* DasneyContenido(void* arg) {
 
-        while (semanas>0)
-        {
-        int seriesActuales = cantidadSeriesDasney;
-        cantidadSeriesDasney = distrib2(gen); // Actualizar la cantidad de series
-        
-        // Espera hasta que todos los hilos hayan terminado su acceso en la semana
-        pthread_mutex_lock(&mutexCount);
-        while (count != 6) {
-            pthread_cond_wait(&cond_actualizarDasney, &mutexCount);
+//FUNCIÓN QUE EJECUTA UN THEAD ENCARGADO DE ACTUALIZAR PARAMETROS PARA LA SIGUIENTE SEMANA
+void* NuevaSemana(void* arg){
+    int i=0; //realiza conteo de las semanas (solo para un tema de tener un output mas entendible)
+      while (semanas > 0) { //este while se ejecuta mientras queden mas de 0 semanas
+        i++; //aumenta el i en 1 para indicar que estamos en la ejecución de la primera semana
+
+        //A continuación un ciclo que espera que tanto Signal1 como Signal 2 
+        //cambien a valor 1. Esto ocurre cuando ambas plataformas actualizaron sus series
+        pthread_mutex_lock(&mutexActualizarSemana);
+        while (signal1 != 1 || signal2 != 1) {
+            pthread_mutex_unlock(&mutexActualizarSemana);
+            sleep(1); // Ajustar el tiempo de espera para evitar busy waiting
+            pthread_mutex_lock(&mutexActualizarSemana);
         }
-      
-        pthread_mutex_unlock(&mutexCount);
-
-        // Verifica que todos los hilos tengan vectores de mismo tamaño
         
-            cout << "Cantidad de series para Dasney: " << cantidadSeriesDasney << endl;
+        //Reestablece las señales signal, disminuye en 1 las semanas y hace listo "true"
+        signal1 = 0;
+        signal2 = 0;
+        semanas--;
+        listo = true; // Indica que la semana ha terminado y deja avanzar a todos los threads 
 
-            // Actualiza las series para la próxima semana
-            for (int i = 0; i < cantidadSeriesDasney; i++) {
-                estadoSeriesDasney["Serie " + to_string(i + seriesActuales + 1)] = 0;
-            }
-            // Reinicia el contador y habilita la siguiente semana
-            count = 0;
-            signal1=1;
-            
-             pthread_mutex_lock(&mutexDasney2);
+        //envía una señal para que los threads que estaban esperando el listo =true avancen
+        pthread_cond_broadcast(&cond_PlataformasActualizadas); 
+
+        //espera unos segundos para esperar a que los threads avancen de la variable de condicion
+        //esto para esperar que la señal "listo" vuelva a bloquear la variable 
+        //antes de que todos los threads pasen
+        sleep(10);
         
+        cout << "-----SE ACABO LA SEMANA "<<i<<" --------------"<< endl;
+        listo = false; // Resetea la bandera de la variable de condicion 
+        
+        pthread_mutex_unlock(&mutexActualizarSemana);
+
+        
+
+}
+return nullptr;
+}
+
+void* BetflixContenido(void* arg) {
+    while (semanas > 0) {
+        int seriesNuevas = distrib2(gen); // Numero de series nuevas para agregar esta semana
+        int seriesActuales = cantidadSeriesBetflix; // Cantidad actual de series en Betflix
+        
+        pthread_mutex_lock(&mutexCount1);
+        while (count1 != 6) {
+            pthread_cond_wait(&cond_actualizarBetflix, &mutexCount1);
+        }
+        pthread_mutex_unlock(&mutexCount1);
+        
+        cantidadSeriesBetflix += seriesNuevas; // Acumula la cantidad de series
+        cout << "Cantidad de series para Betflix: " << seriesNuevas << endl;
+        cout << "Cantidad de series totales en Betflix: " << cantidadSeriesBetflix << endl;
+        for (int i = 0; i < seriesNuevas; i++) {
+            estadoSeriesBetflix["Serie " + to_string(i + seriesActuales + 1)] = 0;
+        }
+
+        count1 = 0;
+        signal2 = 1;
+
+        // Espera el paso a la otra semana
+        pthread_mutex_lock(&mutexDasney2);
         while (!listo) {
             pthread_cond_wait(&cond_PlataformasActualizadas, &mutexDasney2);
         }
         pthread_mutex_unlock(&mutexDasney2);
+    }
 
-        
-        }
-        
-    
     return nullptr;
 }
+
+
+//Funcion exactamente igual que BetflixContenido, pero para Betflix
+void* DasneyContenido(void* arg) {
+    while (semanas > 0) {
+        int seriesNuevas = distrib2(gen); // Número de series nuevas para agregar esta semana
+        int seriesActuales = cantidadSeriesDasney; // Cantidad actual de series en Dasney
+        
+        pthread_mutex_lock(&mutexCount);
+        while (count != 6) {
+            pthread_cond_wait(&cond_actualizarDasney, &mutexCount);
+        }
+        pthread_mutex_unlock(&mutexCount);
+
+        cantidadSeriesDasney += seriesNuevas; // Acumula la cantidad de series
+        cout << "Cantidad de series para Dasney: " << seriesNuevas << endl;
+        cout << "Total de series en Dasney: " << cantidadSeriesDasney << endl;
+
+        for (int i = 0; i < seriesNuevas; i++) {
+            estadoSeriesDasney["Serie " + to_string(i + seriesActuales + 1)] = 0;
+        }
+
+        count = 0;
+        signal1 = 1;
+
+        // Espera el paso a la otra semana
+        pthread_mutex_lock(&mutexDasney2);
+        while (!listo) {
+            pthread_cond_wait(&cond_PlataformasActualizadas, &mutexDasney2);
+        }
+        pthread_mutex_unlock(&mutexDasney2);
+    }
+
+    return nullptr;
+}
+
 
 void* Dasney(void* arg) {
     int thread_index = (long)arg;
     sleep(2);
     pthread_mutex_lock(&mapa);
-    profesores[thread_index] = {};  // Inicializa el vector de series del thread
+    profesores[thread_index] = {};// Inicializa el vector de series del thread
     pthread_mutex_unlock(&mapa);
 
     while (semanas>0)
@@ -220,7 +211,7 @@ void* Dasney(void* arg) {
         // Ver cuántas series puede ver el hilo
         double seriesPorVer = valores[distrib(gen)];
         profesores[thread_index].push_back(seriesPorVer);
-        cout << "EL thread " << thread_index << " vio " << seriesPorVer << " series en Dasney en la semana" << endl;
+        //cout << "EL thread " << thread_index << " vio " << seriesPorVer << " series en Dasney en la semana" << endl;
 
                 // Marcar aleatoriamente las series vistas
             vector<string> series_disponibles;
@@ -232,12 +223,12 @@ void* Dasney(void* arg) {
                     }
                 }
 
-                cout << "Cantidad de series no vistas: " << series_disponibles.size() << endl;
+               // cout << "Cantidad de series no vistas: " << series_disponibles.size() << endl;
 
                 // Marcar como vistas una cantidad igual a seriesPorVer
                 for (int i = 0; i < seriesPorVer && i < series_disponibles.size(); i++) {
                     estadoSeriesDasney[series_disponibles[i]] = 1;
-                    cout << "El thread " << thread_index << " marcó como vista: " << series_disponibles[i] << endl;
+                //    cout << "El thread " << thread_index << " marcó como vista: " << series_disponibles[i] << endl;
                 }
 
         pthread_mutex_unlock(&mutexDasney3);
@@ -290,7 +281,7 @@ void* Betflix(void* arg) {
         // Ver cuántas series puede ver el hilo
         double seriesPorVer = valores[distrib(gen)];
         profesores[thread_index].push_back(seriesPorVer);
-        cout << "EL thread " << thread_index << " vio " << seriesPorVer << " series en Betflix en la semana" << endl;
+        //cout << "EL thread " << thread_index << " vio " << seriesPorVer << " series en Betflix en la semana" << endl;
 
         pthread_mutex_unlock(&mutexBetflix3);
 
