@@ -30,7 +30,7 @@ int cantidadSeriesBetflix = 0; // contador de series para Betflix
 int cantidadSeriesDasney = 0; // contador de series para Dasney
 map<string, int> estadoSeriesDasney; // Mapa para el estado de las series en Dasney
 map<string, int> estadoSeriesBetflix; // Mapa para el estado de las series en Betflix
-map<pthread_t, vector<double>> profesores;
+map<int, vector<double>> profesores;
 
 
 
@@ -198,11 +198,10 @@ void* DasneyContenido(void* arg) {
 }
 
 void* Dasney(void* arg) {
-
+    int thread_index = (long)arg;
     sleep(2);
     pthread_mutex_lock(&mapa);
-    pthread_t thread_id = pthread_self();
-    profesores[thread_id] = {};  // Inicializa el vector de series del thread
+    profesores[thread_index] = {};  // Inicializa el vector de series del thread
     pthread_mutex_unlock(&mapa);
 
     while (semanas>0)
@@ -220,8 +219,8 @@ void* Dasney(void* arg) {
 
         // Ver cuántas series puede ver el hilo
         double seriesPorVer = valores[distrib(gen)];
-        profesores[thread_id].push_back(seriesPorVer);
-        cout << "EL thread " << arg << " vio " << seriesPorVer << " series en Dasney en la semana" << endl;
+        profesores[thread_index].push_back(seriesPorVer);
+        cout << "EL thread " << thread_index << " vio " << seriesPorVer << " series en Dasney en la semana" << endl;
 
                 // Marcar aleatoriamente las series vistas
             vector<string> series_disponibles;
@@ -238,7 +237,7 @@ void* Dasney(void* arg) {
                 // Marcar como vistas una cantidad igual a seriesPorVer
                 for (int i = 0; i < seriesPorVer && i < series_disponibles.size(); i++) {
                     estadoSeriesDasney[series_disponibles[i]] = 1;
-                    cout << "El thread " << arg << " marcó como vista: " << series_disponibles[i] << endl;
+                    cout << "El thread " << thread_index << " marcó como vista: " << series_disponibles[i] << endl;
                 }
 
         pthread_mutex_unlock(&mutexDasney3);
@@ -271,8 +270,8 @@ void* Dasney(void* arg) {
 void* Betflix(void* arg) {
     sleep(3);
      pthread_mutex_lock(&mapa);
-    pthread_t thread_id = pthread_self();
-    profesores[thread_id] = {};  // Inicializa el vector de series del thread
+     int thread_index = (long)arg;
+    profesores[thread_index] = {};  // Inicializa el vector de series del thread
     pthread_mutex_unlock(&mapa);
 
     while (semanas>0)
@@ -290,8 +289,8 @@ void* Betflix(void* arg) {
 
         // Ver cuántas series puede ver el hilo
         double seriesPorVer = valores[distrib(gen)];
-        profesores[thread_id].push_back(seriesPorVer);
-        cout << "EL thread " << arg << " vio " << seriesPorVer << " series en Betflix en la semana" << endl;
+        profesores[thread_index].push_back(seriesPorVer);
+        cout << "EL thread " << thread_index << " vio " << seriesPorVer << " series en Betflix en la semana" << endl;
 
         pthread_mutex_unlock(&mutexBetflix3);
 
@@ -324,6 +323,13 @@ void imprimirContenidos() {
             cout << val << " ";
         }
         cout << endl;
+    }
+}
+
+void imprimirEstadoSeriesDasney() {
+    cout << "Estado de las series en Dasney:" << endl;
+    for (const auto& [nombre, estado] : estadoSeriesDasney) {
+        cout << "Serie: " << nombre << ", Estado: " << (estado == 0 ? "No vista" : "Vista") << endl;
     }
 }
 
@@ -368,6 +374,9 @@ int main(int argc, char* argv[]) {
 
     // Imprimir los contenidos de los vectores
     imprimirContenidos();
+
+    imprimirEstadoSeriesDasney();
+     
     // Limpiar los semáforos
     sem_destroy(&semaforoDasney);
     sem_destroy(&semaforoBetflix);
