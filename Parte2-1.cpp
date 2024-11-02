@@ -246,9 +246,6 @@ void* Dasney(void* arg) {
         // Ver cuántas series puede ver el hilo
         double seriesPorVer = valores[distrib(gen)];
         profesores[thread_index].push_back(seriesPorVer);
-        //cout << "EL thread " << thread_index << " vio " << seriesPorVer << " series en Dasney en la semana" << endl;
-
-                // Marcar aleatoriamente las series vistas
             vector<string> series_disponibles;
 
                 // Llenar series_disponibles solo con las series no vistas
@@ -258,12 +255,10 @@ void* Dasney(void* arg) {
                     }
                 }
 
-               // cout << "Cantidad de series no vistas: " << series_disponibles.size() << endl;
 
                 // Marcar como vistas una cantidad igual a seriesPorVer
                 for (int i = 0; i < seriesPorVer && i < series_disponibles.size(); i++) {
                     estadoSeriesDasney[series_disponibles[i]] = 1;
-                //    cout << "El thread " << thread_index << " marcó como vista: " << series_disponibles[i] << endl;
                 }
 
         pthread_mutex_unlock(&mutexDasney3);

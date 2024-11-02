@@ -24,15 +24,17 @@ bool signal1=0;
 bool signal2=0;
 int count = 0;
 int count1 = 0;
-int semanas = 24; // Declaración número de semanas considerando que 1 mes está compuesto por 4 semanas
+int semanas = 48; // Declaración número de semanas considerando que 1 mes está compuesto por 4 semanas
 bool listo = false;
-
+int numeroSemana=0;
 int cantidadSeriesBetflix=0; // contador de series para Betflix
 int cantidadSeriesDasney=0; // contador de series para Dasney
 map<string, int> estadoSeriesDasney; // Mapa para el estado de las series en Dasney
 map<string, int> estadoSeriesBetflix; // Mapa para el estado de las series en Betflix
 map<int, vector<double>> profesores;
+map<int, vector<double>> profesoresTemp;
 map<int, vector<string>> seriesProfes;
+map<int, vector<string>> seriesProfesTemp;
 
 
 
@@ -58,7 +60,34 @@ pthread_mutex_t mutexActualizarSemana= PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond_PlataformasActualizadas = PTHREAD_COND_INITIALIZER;
 
 
+void ImprimirSeriesProfesTempo() {
+    cout << "-----------------Series vistas por los profesores en en el periodo ----------" << endl;
+    for (auto& par : seriesProfesTemp) { // Itera sobre cada par clave-valor en el mapa
+        int thread_index = par.first; // Obtiene la clave (índice del hilo)
+        vector<string>& seriesVistas = par.second; // Obtiene el vector de series vistas (sin const para poder modificarlo)
+        
+        cout << "El profesor " << thread_index << " vio las series: ";
+        
+        // Imprime las series vistas
+        if (seriesVistas.empty()) {
+            cout << "No vio ninguna serie." << endl;
+        } else {
+            for (const string& serie : seriesVistas) {
+                cout << serie << " - "; // Imprime cada serie en la misma línea
+            }
+            cout << endl; // Salto de línea al final de la lista de series
+        }
+
+        cout<<endl;
+        
+        // Vaciar el vector de series vistas
+        seriesVistas.clear();
+    }
+}
+
+
 void ImprimirSeriesProfes() {
+    cout<<"-----------------Series vistas por los profesores en total ----------------------"<<endl;
     for (const auto& par : seriesProfes) { // Itera sobre cada par clave-valor en el mapa
         int thread_index = par.first; // Obtiene la clave (índice del hilo)
         const vector<string>& seriesVistas = par.second; // Obtiene el vector de series vistas
@@ -74,9 +103,30 @@ void ImprimirSeriesProfes() {
             }
             cout << endl; // Salto de línea al final de la lista de series
         }
+
+        cout<<endl;
     }
 }
 
+void imprimirContenidosTempo() {
+    // Imprimir el contenido de los vectores
+    int semana;
+    for (auto& [id, vector] : profesoresTemp) { // Cambiado a auto& para permitir la modificación
+        cout << "El profesor " << id << " ha visto : ";
+         semana = numeroSemana;  // Inicializa el contador de semana
+        for (double val : vector) {
+            cout << " Semana " << semana+1 << ": " << val << " series; ";
+            semana++;  // Incrementa el contador de semana
+        }
+        cout << endl;
+
+        cout<<endl;
+
+        // Vaciar el vector de series vistas
+        vector.clear(); // Esto vacía el vector de este profesor
+    }
+    numeroSemana=semana;
+}
 
 void imprimirContenidos() {
     // Imprimir el contenido de los vectores
@@ -88,6 +138,21 @@ void imprimirContenidos() {
             semana++;  // Incrementa el contador de semana
         }
         cout << endl;
+    }
+}
+void imprimirNumeroTotal() {
+    // Imprimir el contenido de los vectores
+    for (const auto& [id, vector] : profesores) {
+        int semana = 1;  // Inicializa el contador de semana
+        double totalSeries = 0; // Inicializa el total de series vistas por el profesor
+
+        for (double val : vector) {
+            totalSeries += val; // Suma el valor al total
+            semana++;  // Incrementa el contador de semana
+        }
+
+        // Imprime el total de series vistas por el profesor
+        cout << "Total de series vistas por el profesor "<<id<<" : " << totalSeries << endl; 
     }
 }
 
@@ -141,26 +206,26 @@ void* NuevaSemana(void* arg){
         //espera unos segundos para esperar a que los threads avancen de la variable de condicion
         //esto para esperar que la señal "listo" vuelva a bloquear la variable 
         //antes de que todos los threads pasen
-        sleep(10);
+        sleep(8);
 
         
         
         if(i==4){
             cout<<"-----------YA PASÓ UN MES--------------"<<endl;
-            imprimirContenidos();
-            ImprimirSeriesProfes();
+            imprimirContenidosTempo();
+            ImprimirSeriesProfesTempo();
 
         }
         if(i==24){
             cout<<"-----------YA PASARON 6 MESES--------------"<<endl;
-            imprimirContenidos();
-            ImprimirSeriesProfes();
+            imprimirContenidosTempo();
+            ImprimirSeriesProfesTempo();
 
         }
         if(i==48){
             cout<<"-----------YA PASÓ UN AÑO--------------"<<endl;
-            imprimirContenidos();
-            ImprimirSeriesProfes();
+            imprimirContenidosTempo();
+            ImprimirSeriesProfesTempo();
 
         }
         listo = false; // Resetea la bandera de la variable de condicion 
@@ -251,6 +316,7 @@ void* Dasney(void* arg) {
     pthread_mutex_lock(&mapa);
     profesores[thread_index] = {};  // Inicializa el vector de series del thread
     seriesProfes[thread_index] = {}; 
+    profesoresTemp[thread_index] = {}; 
     pthread_mutex_unlock(&mapa);
     
 
@@ -269,6 +335,7 @@ void* Dasney(void* arg) {
         // Ver cuántas series puede ver el hilo
         double seriesPorVer = valores[distrib(gen)];
         profesores[thread_index].push_back(seriesPorVer);
+        profesoresTemp[thread_index].push_back(seriesPorVer);
 
         // Marcar aleatoriamente las series vistas
         vector<string> series_disponibles;
@@ -284,6 +351,7 @@ void* Dasney(void* arg) {
         for (int i = 0; i < seriesPorVer && i < series_disponibles.size(); i++) {
             estadoSeriesDasney[series_disponibles[i]] = 1;
             seriesProfes[thread_index].push_back(series_disponibles[i]);
+            seriesProfesTemp[thread_index].push_back(series_disponibles[i]);
         }
 
         pthread_mutex_unlock(&mutexDasney3);
@@ -317,6 +385,7 @@ void* Betflix(void* arg) {
     int thread_index = (long)arg;
     profesores[thread_index] = {};  // Inicializa el vector de series del thread
     seriesProfes[thread_index] = {}; 
+     profesoresTemp[thread_index] = {};
     pthread_mutex_unlock(&mapa);
 
     while (semanas > 0) {
@@ -334,6 +403,7 @@ void* Betflix(void* arg) {
         // Ver cuántas series puede ver el hilo
         double seriesPorVer = valores[distrib(gen)];
         profesores[thread_index].push_back(seriesPorVer);
+        profesoresTemp[thread_index].push_back(seriesPorVer);
 
         // Marcar aleatoriamente las series vistas
         vector<string> series_disponibles;
@@ -349,6 +419,8 @@ void* Betflix(void* arg) {
         for (int i = 0; i < seriesPorVer && i < series_disponibles.size(); i++) {
             estadoSeriesBetflix[series_disponibles[i]] = 1;
             seriesProfes[thread_index].push_back(series_disponibles[i]);
+            seriesProfesTemp[thread_index].push_back(series_disponibles[i]);
+            
         }
 
         pthread_mutex_unlock(&mutexBetflix3);
@@ -373,6 +445,20 @@ void* Betflix(void* arg) {
     }
 
     return nullptr;
+}
+
+void imprimirEstadoSeriesDasney() {
+    cout << "Series vistas y no vistas:" << endl;
+    for (const auto& [nombre, estado] : estadoSeriesDasney) {
+        cout << "Serie: " << nombre << ", Estado: " << (estado == 0 ? "No vista" : "Vista") << endl;
+    }
+}
+
+void imprimirEstadoSeriesBetflix() {
+    cout << "Series vistas y no vistas:" << endl;
+    for (const auto& [nombre, estado] : estadoSeriesBetflix) {
+        cout << "Serie: " << nombre << ", Estado: " << (estado == 0 ? "No vista" : "Vista") << endl;
+    }
 }
 
 
@@ -410,12 +496,39 @@ int main(int argc, char* argv[]) {
         }
     }
 
+
+   
+
+
+
     // Esperar a que todos los hilos terminen
     for (int i = 0; i < 15; i++) {
         pthread_join(threads[i], NULL);
     }
 
     // Imprimir los contenidos de los vectores
+    cout<<endl;
+    cout<<endl;
+     cout<<"----------------------------------RESUMEN FINAL----------------------------------"<<endl;
+    cout<<endl;
+    cout<<"En total, los profesores vieron: "<<endl;
+    imprimirNumeroTotal();
+    cout<<endl;
+    cout<<endl;
+    cout<<"--------A CONTINUCAION EL DETALLE DE LAS SERIES VISTAS POR PROFESOR: ------------------"<<endl;
+    ImprimirSeriesProfes();
+    cout<<endl;
+    cout<<endl;
+    cout<<"--------------------INFORMACIÓN PLATAFORMA DASNEY--------------------------------"<<endl;
+    imprimirEstadoSeriesDasney();
+    cout<<endl;
+    cout<<"----------------------------------------------------------------------------------"<<endl;
+    cout<<endl;
+    cout<<"--------------------INFORMACION PLATAFORMA BETFLIX-----------------------------------"<<endl;
+    cout<<endl;
+    imprimirEstadoSeriesBetflix();
+
+
      
     // Limpiar los semáforos
     sem_destroy(&semaforoDasney);
