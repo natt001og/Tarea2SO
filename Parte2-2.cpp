@@ -1,4 +1,4 @@
-//ARCHIVO CORRESPONDIENTE AL PUNTO 1 DE LA TAREA
+//ARCHIVO CORRESPONDIENTE AL PUNTO 2-2 DE LA TAREA. CREACION DEL LIVELOCK
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
