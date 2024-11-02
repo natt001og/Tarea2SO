@@ -23,7 +23,7 @@ bool signal1=0;
 bool signal2=0;
 int count = 0;
 int count1 = 0;
-int semanas = 4; // Declaración número de semanas considerando que 1 mes está compuesto por 4 semanas
+int semanas = 6; // Declaración número de semanas considerando que 1 mes está compuesto por 4 semanas
 bool listo = false;
 
 int seriesActualesDasney;
@@ -97,6 +97,7 @@ void CrearBetflix(){
 void* NuevaSemana(void* arg){
     int i=0; //realiza conteo de las semanas (solo para un tema de tener un output mas entendible)
       while (semanas > 0) { //este while se ejecuta mientras queden mas de 0 semanas
+      cout<< "---------SE ACABÓ UNA SEMANA---------"<<endl;
         i++; //aumenta el i en 1 para indicar que estamos en la ejecución de la primera semana
 
         //A continuación un ciclo que espera que tanto Signal1 como Signal 2 
@@ -122,10 +123,20 @@ void* NuevaSemana(void* arg){
         //antes de que todos los threads pasen
         sleep(10);
 
-        cout<< "---------SE ACABÓ UNA SEMANA---------"<<endl;
+        
         
         if(i==4){
             cout<<"-----------YA PASÓ UN MES--------------"<<endl;
+            imprimirContenidos();
+
+        }
+        if(i==24){
+            cout<<"-----------YA PASARON 6 MESES--------------"<<endl;
+            imprimirContenidos();
+
+        }
+        if(i==48){
+            cout<<"-----------YA PASÓ UN AÑO--------------"<<endl;
             imprimirContenidos();
 
         }
@@ -376,7 +387,7 @@ int main(int argc, char* argv[]) {
     // Imprimir los contenidos de los vectores
    
 
-    imprimirEstadoSeriesDasney();
+    //imprimirEstadoSeriesDasney();
      
     // Limpiar los semáforos
     sem_destroy(&semaforoDasney);
