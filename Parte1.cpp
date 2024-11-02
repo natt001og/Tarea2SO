@@ -23,7 +23,7 @@ bool signal1=0;
 bool signal2=0;
 int count = 0;
 int count1 = 0;
-int semanas = 48; // Declaración número de semanas
+int semanas = 4; // Declaración número de semanas considerando que 1 mes está compuesto por 4 semanas
 bool listo = false;
 
 int seriesActualesDasney;
@@ -57,6 +57,19 @@ pthread_mutex_t mutexBetflix3 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexActualizarSemana= PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond_PlataformasActualizadas = PTHREAD_COND_INITIALIZER;
 
+
+void imprimirContenidos() {
+    // Imprimir el contenido de los vectores
+    for (const auto& [id, vector] : profesores) {
+        cout << "El profesor " << id << " ha visto : ";
+        int semana = 1;  // Inicializa el contador de semana
+        for (double val : vector) {
+            cout << " Semana " << semana << ": " << val << " series; ";
+            semana++;  // Incrementa el contador de semana
+        }
+        cout << endl;
+    }
+}
 
 //Función para inicializar Dasney
 void CrearDasney(){
@@ -108,8 +121,14 @@ void* NuevaSemana(void* arg){
         //esto para esperar que la señal "listo" vuelva a bloquear la variable 
         //antes de que todos los threads pasen
         sleep(10);
+
+        cout<< "---------SE ACABÓ UNA SEMANA---------"<<endl;
         
-        cout << "-----SE ACABO LA SEMANA "<<i<<" --------------"<< endl;
+        if(i==4){
+            cout<<"-----------YA PASÓ UN MES--------------"<<endl;
+            imprimirContenidos();
+
+        }
         listo = false; // Resetea la bandera de la variable de condicion 
         
         pthread_mutex_unlock(&mutexActualizarSemana);
@@ -132,7 +151,7 @@ void* BetflixContenido(void* arg) {
         pthread_mutex_unlock(&mutexCount1);
         
         cantidadSeriesBetflix += seriesNuevas; // Acumula la cantidad de series
-        cout << "Cantidad de series para Betflix: " << seriesNuevas << endl;
+        cout << "Esta semana Betflix añadirá : " << seriesNuevas <<" nuevas series"<< endl;
         cout << "Cantidad de series totales en Betflix: " << cantidadSeriesBetflix << endl;
         for (int i = 0; i < seriesNuevas; i++) {
             estadoSeriesBetflix["Serie " + to_string(i + seriesActuales + 1)] = 0;
@@ -166,7 +185,7 @@ void* DasneyContenido(void* arg) {
         pthread_mutex_unlock(&mutexCount);
 
         cantidadSeriesDasney += seriesNuevas; // Acumula la cantidad de series
-        cout << "Cantidad de series para Dasney: " << seriesNuevas << endl;
+        cout << "Esta semana Dasney añadirá : " << seriesNuevas <<" nuevas series"<< endl;
         cout << "Total de series en Dasney: " << cantidadSeriesDasney << endl;
 
         for (int i = 0; i < seriesNuevas; i++) {
@@ -306,16 +325,7 @@ void* Betflix(void* arg) {
     return nullptr;
 }
 
-void imprimirContenidos() {
-    // Imprimir el contenido de los vectores
-    for (const auto& [id, vector] : profesores) {
-        cout << "Contenido del thread " << id << ": ";
-        for (double val : vector) {
-            cout << val << " ";
-        }
-        cout << endl;
-    }
-}
+
 
 void imprimirEstadoSeriesDasney() {
     cout << "Estado de las series en Dasney:" << endl;
@@ -364,7 +374,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Imprimir los contenidos de los vectores
-    imprimirContenidos();
+   
 
     imprimirEstadoSeriesDasney();
      
