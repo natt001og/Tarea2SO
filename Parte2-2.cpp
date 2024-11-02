@@ -24,7 +24,7 @@ bool signal1=0;
 bool signal2=0;
 int count = 0;
 int count1 = 0;
-int semanas = 24; // Declaración número de semanas considerando que 1 mes está compuesto por 4 semanas
+int semanas = 4; // Declaración número de semanas considerando que 1 mes está compuesto por 4 semanas
 bool listo = false;
 
 int cantidadSeriesBetflix=0; // contador de series para Betflix
@@ -292,19 +292,14 @@ void* Dasney(void* arg) {
 
         // Contabiliza el acceso de cada hilo
         pthread_mutex_lock(&mutexCount);
+        cout<<"aumente en 1 el count"<<endl;
         count++;
         if (count == 6) {
             pthread_cond_signal(&cond_actualizarDasney);  // Señaliza que todos terminaron
         }
         pthread_mutex_unlock(&mutexCount);
+       
 
-        // Espera hasta que todos los hilos completen la semana y se actualicen las series
-        pthread_mutex_lock(&mutexDasney2);
-        while (!listo) {
-            pthread_cond_wait(&cond_PlataformasActualizadas, &mutexDasney2);
-        }
-        pthread_mutex_unlock(&mutexDasney2);
-        sleep(15);
     }
 
     return nullptr;
@@ -362,14 +357,8 @@ void* Betflix(void* arg) {
             pthread_cond_signal(&cond_actualizarBetflix);  // Señaliza que todos terminaron
         }
         pthread_mutex_unlock(&mutexCount1);
+       
 
-        // Espera hasta que todos los hilos completen la semana y se actualicen las series
-        pthread_mutex_lock(&mutexBetflix2);
-        while (!listo) {
-            pthread_cond_wait(&cond_PlataformasActualizadas, &mutexBetflix2);
-        }
-        pthread_mutex_unlock(&mutexBetflix2);
-        sleep(15);
     }
 
     return nullptr;
@@ -423,9 +412,3 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-
-
-
-
-
-
