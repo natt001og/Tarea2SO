@@ -203,14 +203,10 @@ void* NuevaSemana(void* arg){
 
         //envía una señal para que los threads que estaban esperando el listo =true avancen
         pthread_cond_broadcast(&cond_PlataformasActualizadas); 
-
         //espera unos segundos para esperar a que los threads avancen de la variable de condicion
         //esto para esperar que la señal "listo" vuelva a bloquear la variable 
         //antes de que todos los threads pasen
         sleep(8);
-
-        
-        
         if(i==4){
             cout<<"-----------YA PASÓ UN MES--------------"<<endl;
             imprimirContenidosTempo();
@@ -232,9 +228,6 @@ void* NuevaSemana(void* arg){
         listo = false; // Resetea la bandera de la variable de condicion 
         
         pthread_mutex_unlock(&mutexActualizarSemana);
-
-        
-
 }
 return nullptr;
 }
@@ -319,7 +312,6 @@ void* Dasney(void* arg) {
     seriesProfes[thread_index] = {}; 
     profesoresTemp[thread_index] = {}; 
     pthread_mutex_unlock(&mapa);
-    
 
     while (semanas > 0) {
         sem_wait(&semaforoDasney);
@@ -391,7 +383,6 @@ void* Betflix(void* arg) {
 
     while (semanas > 0) {
         sem_wait(&semaforoBetflix);
-
         pthread_mutex_lock(&mutexBetflix);
         // Espera hasta que las series estén actualizadas para la semana actual
         while (estadoSeriesBetflix.size() == 0) {
@@ -400,7 +391,6 @@ void* Betflix(void* arg) {
         pthread_mutex_unlock(&mutexBetflix);
 
         pthread_mutex_lock(&mutexBetflix3);
-
         // Ver cuántas series puede ver el hilo
         double seriesPorVer = valores[distrib(gen)];
         profesores[thread_index].push_back(seriesPorVer);
@@ -463,7 +453,7 @@ void imprimirEstadoSeriesBetflix() {
 }
 
 int main(int argc, char* argv[]) {
-    pthread_t threads[14];
+    pthread_t threads[15];
     int status, option, personalizado;
     ofstream archivoSalida;
     streambuf* coutbuf = cout.rdbuf();  // Guarda el buffer original de cout

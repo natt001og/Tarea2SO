@@ -11,6 +11,7 @@
 #include <semaphore.h>
 #include <random>
 #include <unistd.h>
+#include <fstream>
 using namespace std;
 
 // Elementos para la generación de números random
@@ -24,15 +25,17 @@ bool signal1=0;
 bool signal2=0;
 int count = 0;
 int count1 = 0;
-int semanas = 4; // Declaración número de semanas considerando que 1 mes está compuesto por 4 semanas
+int semanas;
 bool listo = false;
-
+int numeroSemana=0;
 int cantidadSeriesBetflix=0; // contador de series para Betflix
 int cantidadSeriesDasney=0; // contador de series para Dasney
 map<string, int> estadoSeriesDasney; // Mapa para el estado de las series en Dasney
 map<string, int> estadoSeriesBetflix; // Mapa para el estado de las series en Betflix
 map<int, vector<double>> profesores;
+map<int, vector<double>> profesoresTemp;
 map<int, vector<string>> seriesProfes;
+map<int, vector<string>> seriesProfesTemp;
 
 
 
@@ -58,7 +61,35 @@ pthread_mutex_t mutexActualizarSemana= PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond_PlataformasActualizadas = PTHREAD_COND_INITIALIZER;
 
 
+
+void ImprimirSeriesProfesTempo() {
+    cout << "-----------------Series vistas por los profesores en en el periodo ----------" << endl;
+    for (auto& par : seriesProfesTemp) { // Itera sobre cada par clave-valor en el mapa
+        int thread_index = par.first; // Obtiene la clave (índice del hilo)
+        vector<string>& seriesVistas = par.second; // Obtiene el vector de series vistas (sin const para poder modificarlo)
+        
+        cout << "El profesor " << thread_index << " vio las series: ";
+        
+        // Imprime las series vistas
+        if (seriesVistas.empty()) {
+            cout << "No vio ninguna serie." << endl;
+        } else {
+            for (const string& serie : seriesVistas) {
+                cout << serie << " - "; // Imprime cada serie en la misma línea
+            }
+            cout << endl; // Salto de línea al final de la lista de series
+        }
+
+        cout<<endl;
+        
+        // Vaciar el vector de series vistas
+        seriesVistas.clear();
+    }
+}
+
+
 void ImprimirSeriesProfes() {
+    cout<<"-----------------Series vistas por los profesores en total ----------------------"<<endl;
     for (const auto& par : seriesProfes) { // Itera sobre cada par clave-valor en el mapa
         int thread_index = par.first; // Obtiene la clave (índice del hilo)
         const vector<string>& seriesVistas = par.second; // Obtiene el vector de series vistas
@@ -74,9 +105,30 @@ void ImprimirSeriesProfes() {
             }
             cout << endl; // Salto de línea al final de la lista de series
         }
+
+        cout<<endl;
     }
 }
 
+void imprimirContenidosTempo() {
+    // Imprimir el contenido de los vectores
+    int semana;
+    for (auto& [id, vector] : profesoresTemp) { // Cambiado a auto& para permitir la modificación
+        cout << "El profesor " << id << " ha visto : ";
+         semana = numeroSemana;  // Inicializa el contador de semana
+        for (double val : vector) {
+            cout << " Semana " << semana+1 << ": " << val << " series; ";
+            semana++;  // Incrementa el contador de semana
+        }
+        cout << endl;
+
+        cout<<endl;
+
+        // Vaciar el vector de series vistas
+        vector.clear(); // Esto vacía el vector de este profesor
+    }
+    numeroSemana=semana;
+}
 
 void imprimirContenidos() {
     // Imprimir el contenido de los vectores
@@ -88,6 +140,21 @@ void imprimirContenidos() {
             semana++;  // Incrementa el contador de semana
         }
         cout << endl;
+    }
+}
+void imprimirNumeroTotal() {
+    // Imprimir el contenido de los vectores
+    for (const auto& [id, vector] : profesores) {
+        int semana = 1;  // Inicializa el contador de semana
+        double totalSeries = 0; // Inicializa el total de series vistas por el profesor
+
+        for (double val : vector) {
+            totalSeries += val; // Suma el valor al total
+            semana++;  // Incrementa el contador de semana
+        }
+
+        // Imprime el total de series vistas por el profesor
+        cout << "Total de series vistas por el profesor "<<id<<" : " << totalSeries << endl; 
     }
 }
 
@@ -364,51 +431,113 @@ void* Betflix(void* arg) {
     return nullptr;
 }
 
+void imprimirEstadoSeriesDasney() {
+    cout << "Series vistas y no vistas:" << endl;
+    for (const auto& [nombre, estado] : estadoSeriesDasney) {
+        cout << "Serie: " << nombre << ", Estado: " << (estado == 0 ? "No vista" : "Vista") << endl;
+    }
+}
+
+void imprimirEstadoSeriesBetflix() {
+    cout << "Series vistas y no vistas:" << endl;
+    for (const auto& [nombre, estado] : estadoSeriesBetflix) {
+        cout << "Serie: " << nombre << ", Estado: " << (estado == 0 ? "No vista" : "Vista") << endl;
+    }
+}
 
 int main(int argc, char* argv[]) {
-    // Declaración de los threads                 
-    pthread_t threads[14];
-    int status;
+   pthread_t threads[15];
+    int status, option, personalizado;
+    ofstream archivoSalida;
+    streambuf* coutbuf = cout.rdbuf();  // Guarda el buffer original de cout
+
+    while (true) {
+        cout << "Indique el número de la opción que quiere ejecutar:\n";
+        cout << "1. 1 semana\n";
+        cout << "2. 1 mes\n";
+        cout << "3. 6 meses\n";
+        cout << "4. 1 año\n";
+        cout << "5. Personalizado\n";
+        cout << "Opción: ";
+        cin >> option;
+
+        if (option == 1) {
+            semanas = 1;
+            break;
+        } else if (option == 2) {
+            semanas = 4;
+            break;
+        } else if (option == 3) {
+            semanas = 24;
+            break;
+        } else if (option == 4) {
+            semanas = 48;
+            archivoSalida.open("salida_punto1.txt");
+            cout.rdbuf(archivoSalida.rdbuf());
+            break;
+        } else if (option == 5) {
+            cout << "Ingrese el número de semanas a evaluar: ";
+            cin >> personalizado;
+            semanas = personalizado;
+            if (personalizado >= 48) {
+                cout << "Para las ejecuciones de más de 48 semanas, los resultados se guardarán en un archivo .txt" << endl;
+                archivoSalida.open("salida_punto1.txt");
+                cout.rdbuf(archivoSalida.rdbuf());
+            }
+            break;
+        } else {
+            cout << "Error. Opción inválida" << endl;
+        }
+    }
 
     CrearDasney();
     CrearBetflix();
 
-    // Inicialización de los semáforos
     sem_init(&semaforoDasney, 0, 2);
     sem_init(&semaforoBetflix, 0, 1);
 
-    // Crear hilos para Dasney y Betflix
     for (long i = 0; i < 15; i++) {
         if (i <= 5) {
             printf("[main] Creando thread %ld para Dasney\n", i);
             status = pthread_create(&threads[i], NULL, Dasney, (void*)i);
-        } else if(i>5 && i<=11){
+        } else if (i > 5 && i <= 11) {
             printf("[main] Creando thread %ld para Betflix\n", i);
             status = pthread_create(&threads[i], NULL, Betflix, (void*)i);
-        }else if(i==12){
+        } else if (i == 12) {
             status = pthread_create(&threads[i], NULL, BetflixContenido, (void*)i);
-        } else if(i==13){
+        } else if (i == 13) {
             status = pthread_create(&threads[i], NULL, DasneyContenido, (void*)i);
-        } else if(i==14){
+        } else if (i == 14) {
             status = pthread_create(&threads[i], NULL, NuevaSemana, (void*)i);
         }
-        
+
         if (status != 0) {
             cerr << "Error al crear el thread " << i << endl;
             exit(EXIT_FAILURE);
         }
     }
 
-    // Esperar a que todos los hilos terminen
     for (int i = 0; i < 15; i++) {
         pthread_join(threads[i], NULL);
     }
 
-    // Imprimir los contenidos de los vectores
-     
-    // Limpiar los semáforos
+    cout << endl << "----------------------------------RESUMEN FINAL----------------------------------" << endl;
+    imprimirNumeroTotal();
+    cout << endl << "--------DETALLE DE LAS SERIES VISTAS POR PROFESOR------------------" << endl;
+    ImprimirSeriesProfes();
+    cout << endl << "--------------------INFORMACIÓN PLATAFORMA DASNEY--------------------------------" << endl;
+    imprimirEstadoSeriesDasney();
+    cout << endl << "--------------------INFORMACIÓN PLATAFORMA BETFLIX--------------------------------" << endl;
+    imprimirEstadoSeriesBetflix();
+
+    if (semanas >= 48) {
+        cout.rdbuf(coutbuf);
+        archivoSalida.close();
+    }
+
     sem_destroy(&semaforoDasney);
     sem_destroy(&semaforoBetflix);
+
 
     return 0;
 }
